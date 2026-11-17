@@ -1,0 +1,15 @@
+.pio/
+.venv/
+.vscode/
+.DS_Store
+__pycache__/
+
+# Your own config: device addresses and your remote's address. Start from config.example.json.
+data/config.json
+
+# KiCad temporary and backup files
+*-backups/
+_autosave-*
+*.kicad_prl
+*.lck
+fp-info-cache

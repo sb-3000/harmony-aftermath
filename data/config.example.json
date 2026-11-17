@@ -1,0 +1,300 @@
+{
+  "remote": {
+    "address": "",
+    "channel": 5,
+    "buttons": {
+      "C10058": "ok",
+      "C10052": "up",
+      "C10051": "down",
+      "C10050": "left",
+      "C1004F": "right",
+      "C3E900": "vol_up",
+      "C3EA00": "vol_down",
+      "C39C00": "ch_up",
+      "C39D00": "ch_down",
+      "C3E200": "mute",
+      "C32402": "back",
+      "C39400": "exit",
+      "C10065": "menu",
+      "C39A00": "dvr",
+      "C38D00": "guide",
+      "C3FF01": "info",
+      "C3F701": "red",
+      "C3F601": "green",
+      "C3F501": "yellow",
+      "C3F401": "blue",
+      "C3B400": "rewind",
+      "C3B300": "forward",
+      "C3B000": "play",
+      "C3B100": "pause",
+      "C3B700": "stop",
+      "C3B200": "record",
+      "C3E801": "music",
+      "C3ED01": "tv",
+      "C3E901": "movie",
+      "C3EC01": "off",
+      "C1001E": "1",
+      "C1001F": "2",
+      "C10020": "3",
+      "C10021": "4",
+      "C10022": "5",
+      "C10023": "6",
+      "C10024": "7",
+      "C10025": "8",
+      "C10026": "9",
+      "C10027": "0",
+      "C10056": "dash",
+      "C10028": "enter",
+      "C3F20F": "light_1",
+      "C3F30F": "light_2",
+      "C3F40F": "socket_1",
+      "C3F50F": "socket_2",
+      "C3F00F": "plus",
+      "C3F10F": "minus"
+    },
+    "activity_buttons": {
+      "tv": "watch_pc",
+      "off": "off"
+    },
+    "activity_buttons_long": {
+      "tv": "watch_pc_rme"
+    }
+  },
+  "devices": {
+    "lg_tv": {
+      "transport": "ir_nec",
+      "id": "04FB",
+      "commands": {
+        "on": "C4",
+        "off": "C5",
+        "mute": "09",
+        "vol_up": "02",
+        "vol_down": "03",
+        "hdmi_1": "CE",
+        "hdmi_2": "CC",
+        "hdmi_3": "E9",
+        "hdmi_4": "DA"
+      }
+    },
+    "rme": {
+      "transport": "ir_nec",
+      "id": "1234",
+      "commands": {
+        "toggle": "60",
+        "off": "54",
+        "mute": "6A",
+        "vol_up": "62",
+        "vol_down": "61"
+      },
+      "state": {
+        "tasmota": "192.168.1.50",
+        "switch": "Switch1",
+        "on_value": "OFF"
+      }
+    },
+    "speakers": {
+      "transport": "tasmota",
+      "host": "192.168.1.50"
+    },
+    "pc": {
+      "transport": "bluetooth",
+      "commands": {
+        "up": "KEY_UP",
+        "down": "KEY_DOWN",
+        "left": "KEY_LEFT",
+        "right": "KEY_RIGHT",
+        "ok": "KEY_ENTER",
+        "back": "KEY_BACKSPACE",
+        "play_pause": "MEDIA_PLAY_PAUSE",
+        "stop": "MEDIA_STOP",
+        "next": "MEDIA_NEXT",
+        "previous": "MEDIA_PREVIOUS",
+        "exit": "KEY_ESC",
+        "menu": "KEY_C",
+        "info": "KEY_I",
+        "wake_with_keyboard": "KEY_SHIFT",
+        "sleep": "SYSTEM_SLEEP"
+      },
+      "wake_on_lan": {
+        "mac": "00:11:22:33:44:55",
+        "broadcast": "192.168.1.255"
+      }
+    }
+  },
+  "activities": {
+    "watch_pc": {
+      "name": "Watch PC",
+      "start": [
+        {
+          "device": "pc",
+          "command": "wake_by_network"
+        },
+        {
+          "device": "lg_tv",
+          "command": "on"
+        },
+        {
+          "delay_ms": 3000
+        },
+        {
+          "device": "lg_tv",
+          "command": "hdmi_3"
+        }
+      ],
+      "buttons": {
+        "mute": {
+          "device": "lg_tv",
+          "command": "mute"
+        },
+        "vol_up": {
+          "device": "lg_tv",
+          "command": "vol_up",
+          "repeat": true
+        },
+        "vol_down": {
+          "device": "lg_tv",
+          "command": "vol_down",
+          "repeat": true
+        },
+        "up": {
+          "device": "pc",
+          "command": "up",
+          "repeat": true
+        },
+        "down": {
+          "device": "pc",
+          "command": "down",
+          "repeat": true
+        },
+        "left": {
+          "device": "pc",
+          "command": "left",
+          "repeat": true
+        },
+        "right": {
+          "device": "pc",
+          "command": "right",
+          "repeat": true
+        },
+        "ok": {
+          "device": "pc",
+          "command": "ok"
+        },
+        "back": {
+          "device": "pc",
+          "command": "back"
+        },
+        "exit": {
+          "device": "pc",
+          "command": "exit"
+        },
+        "play": {
+          "device": "pc",
+          "command": "play_pause"
+        },
+        "pause": {
+          "device": "pc",
+          "command": "play_pause"
+        },
+        "stop": {
+          "device": "pc",
+          "command": "stop"
+        },
+        "forward": {
+          "device": "pc",
+          "command": "next"
+        },
+        "rewind": {
+          "device": "pc",
+          "command": "previous"
+        },
+        "menu": {
+          "device": "pc",
+          "command": "menu"
+        },
+        "info": {
+          "device": "pc",
+          "command": "info"
+        }
+      }
+    },
+    "off": {
+      "name": "Off",
+      "start": [
+        {
+          "device": "lg_tv",
+          "command": "off"
+        },
+        {
+          "device": "rme",
+          "power": "off"
+        },
+        {
+          "device": "pc",
+          "command": "sleep"
+        },
+        {
+          "delay_ms": 1000
+        },
+        {
+          "device": "speakers",
+          "power": "off"
+        }
+      ]
+    },
+    "watch_pc_rme": {
+      "name": "Watch PC with RME",
+      "start": [
+        {
+          "device": "pc",
+          "command": "wake_by_network"
+        },
+        {
+          "device": "lg_tv",
+          "command": "on"
+        },
+        {
+          "device": "rme",
+          "power": "on"
+        },
+        {
+          "delay_ms": 3000
+        },
+        {
+          "device": "lg_tv",
+          "command": "hdmi_3"
+        }
+      ],
+      "buttons": {
+        "mute": {
+          "device": "rme",
+          "command": "mute"
+        },
+        "vol_up": {
+          "device": "rme",
+          "command": "vol_up",
+          "repeat": true
+        },
+        "vol_down": {
+          "device": "rme",
+          "command": "vol_down",
+          "repeat": true
+        }
+      },
+      "stop": [
+        {
+          "device": "rme",
+          "power": "off"
+        },
+        {
+          "delay_ms": 1000
+        },
+        {
+          "device": "speakers",
+          "power": "off"
+        }
+      ],
+      "extends": "watch_pc"
+    }
+  }
+}

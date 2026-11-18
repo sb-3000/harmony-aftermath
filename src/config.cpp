@@ -64,6 +64,11 @@ bool validateCommand(JsonObject devices, JsonObject step, const String& where, S
       error = where + ": " + deviceName + " has no wake_on_lan settings";
       return false;
     }
+  } else if (command != nullptr && strcmp(command, "wake_by_bluetooth") == 0) {
+    if (transport != "bluetooth") {
+      error = where + ": wake_by_bluetooth needs a Bluetooth device";
+      return false;
+    }
   } else if (command == nullptr || device["commands"][command].isNull()) {
     error = where + ": unknown command " + (command != nullptr ? command : "(none)") + " for " + deviceName;
     return false;

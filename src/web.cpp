@@ -57,10 +57,13 @@ String deviceStateText(const String& name, JsonObject device) {
     if (!state.known) return "unknown";
     return state.switch1 == (device["state"]["on_value"] | "") ? "ON" : "OFF";
   }
-  if (device["transport"] == "bluetooth") return bleIsConnected(name) ? "connected" : "not connected";
+  // A sleeping device drops its Bluetooth connection, so connected means on.
+  if (device["transport"] == "bluetooth") return bleIsConnected(name) ? "ON (Bluetooth connected)" : "OFF (Bluetooth disconnected)";
   // No way to read it, so show the last On or Off the hub sent.
   String remembered = devicePowerState(name);
-  return remembered.isEmpty() ? "unknown" : remembered + " (last sent)";
+  if (remembered.isEmpty()) return "unknown";
+  remembered.toUpperCase();
+  return remembered + " (last sent)";
 }
 
 String remoteAddress() {

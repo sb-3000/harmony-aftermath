@@ -134,7 +134,9 @@
         "play_pause": "MEDIA_PLAY_PAUSE",
         "next": "MEDIA_NEXT",
         "previous": "MEDIA_PREVIOUS",
-        "menu": "KEY_MENU"
+        "menu": "KEY_MENU",
+        "sleep": "SYSTEM_SLEEP",
+        "home": "MEDIA_HOME"
       }
     }
   },
@@ -151,6 +153,10 @@
         },
         {
           "device": "PC Black Pearl",
+          "command": "sleep"
+        },
+        {
+          "device": "Fire TV",
           "command": "sleep"
         },
         {
@@ -311,7 +317,14 @@
         {
           "device": "LG OLED TV",
           "power": "on",
-          "settle_ms": 3000
+          "settle_ms": 1000
+        },
+        {
+          "device": "Fire TV",
+          "command": "wake_by_bluetooth"
+        },
+        {
+          "delay_ms": 2000
         },
         {
           "device": "LG OLED TV",
@@ -363,7 +376,7 @@
         },
         "exit": {
           "device": "Fire TV",
-          "command": "back"
+          "command": "home"
         },
         "play": {
           "device": "Fire TV",

@@ -8,6 +8,7 @@
 
 namespace {
 constexpr uint32_t PAIRING_WINDOW_MS = 60000;
+constexpr uint32_t WAKE_CALL_SECONDS = 10;  // Ends early once the device connects.
 constexpr uint32_t KEY_HOLD_MS = 15;
 constexpr uint8_t REPORT_KEYBOARD = 1;
 constexpr uint8_t REPORT_MEDIA = 2;
@@ -66,6 +67,8 @@ const Key KEYS[] = {
     {"MEDIA_NEXT", 0xB5, true, 0, false},
     {"MEDIA_PREVIOUS", 0xB6, true, 0, false},
     {"MEDIA_MUTE", 0xE2, true, 0, false},
+    // AC Home. Android and Fire TV treat it as the Home button.
+    {"MEDIA_HOME", 0x223, true, 0, false},
     {"MEDIA_VOLUME_UP", 0xE9, true, 0, false},
     {"MEDIA_VOLUME_DOWN", 0xEA, true, 0, false},
     {"SYSTEM_SLEEP", 0x82, false, 0, true},
@@ -402,6 +405,44 @@ bool bleSendKey(const String& name, const char* keyName, String& error) {
   }
   logEvent("Bluetooth key %s to %s", keyName, name.c_str());
   return true;
+}
+
+// Sends advertising addressed to this one paired device, the way a Bluetooth keyboard wakes
+// a sleeping computer. Plain advertising, which the hub does anyway, doesn't wake a host.
+bool bleWake(const String& name, String& error) {
+  String address = savedAddress(name);
+  if (address.isEmpty()) {
+    error = name + " is not paired";
+    return false;
+  }
+  if (linkHandle(address) >= 0) {
+    logEvent("%s is already connected, no wake needed", name.c_str());
+    return true;
+  }
+  if (linkCount() >= MAX_LINKS) {
+    error = "all Bluetooth connections are in use";
+    return false;
+  }
+
+  // The bond holds the address type (public or random) the call has to be addressed with.
+  for (int i = 0; i < NimBLEDevice::getNumBonds(); i++) {
+    NimBLEAddress bonded = NimBLEDevice::getBondedAddress(i);
+    if (address != bonded.toString().c_str()) continue;
+
+    NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
+    if (advertising->isAdvertising()) advertising->stop();
+    advertising->setAdvertisementType(BLE_GAP_CONN_MODE_DIR);
+    bool started = advertising->start(WAKE_CALL_SECONDS, nullptr, &bonded);
+    advertising->setAdvertisementType(BLE_GAP_CONN_MODE_UND);  // Later starts are ordinary again.
+    if (!started) {
+      error = "could not start the Bluetooth wake call";
+      return false;
+    }
+    logEvent("Bluetooth wake call to %s", name.c_str());
+    return true;
+  }
+  error = name + " has no Bluetooth keys, pair it again";
+  return false;
 }
 
 bool bleIsPaired(const String& name) {

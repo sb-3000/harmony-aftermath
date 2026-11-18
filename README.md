@@ -90,8 +90,12 @@ Each device has a `transport`:
   `KEY_RIGHT`, `KEY_ENTER`, `KEY_ESC`, `KEY_BACKSPACE`, `KEY_TAB`, `KEY_SPACE`,
   `KEY_MENU` (the Menu button on Fire TV and Android),
   `KEY_SHIFT`, `KEY_A` to `KEY_Z`, `MEDIA_PLAY_PAUSE`, `MEDIA_STOP`, `MEDIA_NEXT`,
-  `MEDIA_PREVIOUS`, `MEDIA_MUTE`, `MEDIA_VOLUME_UP`, `MEDIA_VOLUME_DOWN` and
+  `MEDIA_PREVIOUS`, `MEDIA_MUTE`, `MEDIA_VOLUME_UP`, `MEDIA_VOLUME_DOWN`, `MEDIA_HOME`
+  (the Home button on Fire TV and Android) and
   `SYSTEM_SLEEP`.
+  A Bluetooth device also has the `wake_by_bluetooth` command: for 10 seconds the hub calls
+  that one device, the way a keyboard wakes a sleeping computer. Whether that wakes it
+  depends on the device.
 - `tasmota`: `host` is the switch's address. Its commands are `on` and `off`.
 
 Any device can also have:

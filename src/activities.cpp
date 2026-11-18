@@ -244,6 +244,7 @@ bool deviceCommand(const String& name, const String& command, String& error) {
   }
 
   if (command == "wake_by_network") return sendWakeOnLan(name, device["wake_on_lan"], error);
+  if (command == "wake_by_bluetooth") return bleWake(name, error);
 
   String transport = device["transport"] | "";
   if (transport == "ir_nec") {

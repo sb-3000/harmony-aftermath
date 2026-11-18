@@ -53,15 +53,17 @@
       "C3F10F": "minus"
     },
     "activity_buttons": {
-      "tv": "watch_pc",
-      "off": "off"
+      "tv": "Watch PC",
+      "off": "Off",
+      "music": "Listen to Vinyl",
+      "movie": "Watch Fire TV"
     },
     "activity_buttons_long": {
-      "tv": "watch_pc_rme"
+      "tv": "Watch PC with RME"
     }
   },
   "devices": {
-    "lg_tv": {
+    "LG OLED TV": {
       "transport": "ir_nec",
       "id": "04FB",
       "commands": {
@@ -76,7 +78,7 @@
         "hdmi_4": "DA"
       }
     },
-    "rme": {
+    "RME ADI-2/4 Pro SE": {
       "transport": "ir_nec",
       "id": "1234",
       "commands": {
@@ -96,7 +98,7 @@
       "transport": "tasmota",
       "host": "192.168.1.50"
     },
-    "pc": {
+    "PC Black Pearl": {
       "transport": "bluetooth",
       "commands": {
         "up": "KEY_UP",
@@ -119,118 +121,36 @@
         "mac": "00:11:22:33:44:55",
         "broadcast": "192.168.1.255"
       }
+    },
+    "Fire TV": {
+      "transport": "bluetooth",
+      "commands": {
+        "up": "KEY_UP",
+        "down": "KEY_DOWN",
+        "left": "KEY_LEFT",
+        "right": "KEY_RIGHT",
+        "ok": "KEY_ENTER",
+        "back": "KEY_ESC",
+        "play_pause": "MEDIA_PLAY_PAUSE",
+        "next": "MEDIA_NEXT",
+        "previous": "MEDIA_PREVIOUS",
+        "menu": "KEY_MENU"
+      }
     }
   },
   "activities": {
-    "watch_pc": {
-      "name": "Watch PC",
+    "Off": {
       "start": [
         {
-          "device": "pc",
-          "command": "wake_by_network"
-        },
-        {
-          "device": "lg_tv",
-          "command": "on"
-        },
-        {
-          "delay_ms": 3000
-        },
-        {
-          "device": "lg_tv",
-          "command": "hdmi_3"
-        }
-      ],
-      "buttons": {
-        "mute": {
-          "device": "lg_tv",
-          "command": "mute"
-        },
-        "vol_up": {
-          "device": "lg_tv",
-          "command": "vol_up",
-          "repeat": true
-        },
-        "vol_down": {
-          "device": "lg_tv",
-          "command": "vol_down",
-          "repeat": true
-        },
-        "up": {
-          "device": "pc",
-          "command": "up",
-          "repeat": true
-        },
-        "down": {
-          "device": "pc",
-          "command": "down",
-          "repeat": true
-        },
-        "left": {
-          "device": "pc",
-          "command": "left",
-          "repeat": true
-        },
-        "right": {
-          "device": "pc",
-          "command": "right",
-          "repeat": true
-        },
-        "ok": {
-          "device": "pc",
-          "command": "ok"
-        },
-        "back": {
-          "device": "pc",
-          "command": "back"
-        },
-        "exit": {
-          "device": "pc",
-          "command": "exit"
-        },
-        "play": {
-          "device": "pc",
-          "command": "play_pause"
-        },
-        "pause": {
-          "device": "pc",
-          "command": "play_pause"
-        },
-        "stop": {
-          "device": "pc",
-          "command": "stop"
-        },
-        "forward": {
-          "device": "pc",
-          "command": "next"
-        },
-        "rewind": {
-          "device": "pc",
-          "command": "previous"
-        },
-        "menu": {
-          "device": "pc",
-          "command": "menu"
-        },
-        "info": {
-          "device": "pc",
-          "command": "info"
-        }
-      }
-    },
-    "off": {
-      "name": "Off",
-      "start": [
-        {
-          "device": "lg_tv",
+          "device": "LG OLED TV",
           "command": "off"
         },
         {
-          "device": "rme",
+          "device": "RME ADI-2/4 Pro SE",
           "power": "off"
         },
         {
-          "device": "pc",
+          "device": "PC Black Pearl",
           "command": "sleep"
         },
         {
@@ -242,48 +162,138 @@
         }
       ]
     },
-    "watch_pc_rme": {
-      "name": "Watch PC with RME",
+    "Watch PC": {
       "start": [
         {
-          "device": "pc",
+          "device": "PC Black Pearl",
           "command": "wake_by_network"
         },
         {
-          "device": "lg_tv",
-          "command": "on"
+          "device": "LG OLED TV",
+          "power": "on",
+          "settle_ms": 3000
         },
         {
-          "device": "rme",
-          "power": "on"
-        },
-        {
-          "delay_ms": 3000
-        },
-        {
-          "device": "lg_tv",
+          "device": "LG OLED TV",
           "command": "hdmi_3"
         }
       ],
       "buttons": {
         "mute": {
-          "device": "rme",
+          "device": "LG OLED TV",
           "command": "mute"
         },
         "vol_up": {
-          "device": "rme",
+          "device": "LG OLED TV",
           "command": "vol_up",
           "repeat": true
         },
         "vol_down": {
-          "device": "rme",
+          "device": "LG OLED TV",
+          "command": "vol_down",
+          "repeat": true
+        },
+        "up": {
+          "device": "PC Black Pearl",
+          "command": "up",
+          "repeat": true
+        },
+        "down": {
+          "device": "PC Black Pearl",
+          "command": "down",
+          "repeat": true
+        },
+        "left": {
+          "device": "PC Black Pearl",
+          "command": "left",
+          "repeat": true
+        },
+        "right": {
+          "device": "PC Black Pearl",
+          "command": "right",
+          "repeat": true
+        },
+        "ok": {
+          "device": "PC Black Pearl",
+          "command": "ok"
+        },
+        "back": {
+          "device": "PC Black Pearl",
+          "command": "back"
+        },
+        "exit": {
+          "device": "PC Black Pearl",
+          "command": "exit"
+        },
+        "play": {
+          "device": "PC Black Pearl",
+          "command": "play_pause"
+        },
+        "pause": {
+          "device": "PC Black Pearl",
+          "command": "play_pause"
+        },
+        "stop": {
+          "device": "PC Black Pearl",
+          "command": "stop"
+        },
+        "forward": {
+          "device": "PC Black Pearl",
+          "command": "next"
+        },
+        "rewind": {
+          "device": "PC Black Pearl",
+          "command": "previous"
+        },
+        "menu": {
+          "device": "PC Black Pearl",
+          "command": "menu"
+        },
+        "info": {
+          "device": "PC Black Pearl",
+          "command": "info"
+        }
+      }
+    },
+    "Watch PC with RME": {
+      "start": [
+        {
+          "device": "PC Black Pearl",
+          "command": "wake_by_network"
+        },
+        {
+          "device": "RME ADI-2/4 Pro SE",
+          "power": "on"
+        },
+        {
+          "device": "LG OLED TV",
+          "power": "on",
+          "settle_ms": 3000
+        },
+        {
+          "device": "LG OLED TV",
+          "command": "hdmi_3"
+        }
+      ],
+      "buttons": {
+        "mute": {
+          "device": "RME ADI-2/4 Pro SE",
+          "command": "mute"
+        },
+        "vol_up": {
+          "device": "RME ADI-2/4 Pro SE",
+          "command": "vol_up",
+          "repeat": true
+        },
+        "vol_down": {
+          "device": "RME ADI-2/4 Pro SE",
           "command": "vol_down",
           "repeat": true
         }
       },
       "stop": [
         {
-          "device": "rme",
+          "device": "RME ADI-2/4 Pro SE",
           "power": "off"
         },
         {
@@ -294,7 +304,132 @@
           "power": "off"
         }
       ],
-      "extends": "watch_pc"
+      "extends": "Watch PC"
+    },
+    "Watch Fire TV": {
+      "start": [
+        {
+          "device": "LG OLED TV",
+          "power": "on",
+          "settle_ms": 3000
+        },
+        {
+          "device": "LG OLED TV",
+          "command": "hdmi_1"
+        }
+      ],
+      "buttons": {
+        "mute": {
+          "device": "LG OLED TV",
+          "command": "mute"
+        },
+        "vol_up": {
+          "device": "LG OLED TV",
+          "command": "vol_up",
+          "repeat": true
+        },
+        "vol_down": {
+          "device": "LG OLED TV",
+          "command": "vol_down",
+          "repeat": true
+        },
+        "up": {
+          "device": "Fire TV",
+          "command": "up",
+          "repeat": true
+        },
+        "down": {
+          "device": "Fire TV",
+          "command": "down",
+          "repeat": true
+        },
+        "left": {
+          "device": "Fire TV",
+          "command": "left",
+          "repeat": true
+        },
+        "right": {
+          "device": "Fire TV",
+          "command": "right",
+          "repeat": true
+        },
+        "ok": {
+          "device": "Fire TV",
+          "command": "ok"
+        },
+        "back": {
+          "device": "Fire TV",
+          "command": "back"
+        },
+        "exit": {
+          "device": "Fire TV",
+          "command": "back"
+        },
+        "play": {
+          "device": "Fire TV",
+          "command": "play_pause"
+        },
+        "pause": {
+          "device": "Fire TV",
+          "command": "play_pause"
+        },
+        "forward": {
+          "device": "Fire TV",
+          "command": "next"
+        },
+        "rewind": {
+          "device": "Fire TV",
+          "command": "previous"
+        },
+        "menu": {
+          "device": "Fire TV",
+          "command": "menu"
+        }
+      }
+    },
+    "Listen to Vinyl": {
+      "start": [
+        {
+          "device": "RME ADI-2/4 Pro SE",
+          "power": "on"
+        },
+        {
+          "delay_ms": 500
+        },
+        {
+          "device": "speakers",
+          "power": "on"
+        }
+      ],
+      "buttons": {
+        "mute": {
+          "device": "RME ADI-2/4 Pro SE",
+          "command": "mute"
+        },
+        "vol_up": {
+          "device": "RME ADI-2/4 Pro SE",
+          "command": "vol_up",
+          "repeat": true
+        },
+        "vol_down": {
+          "device": "RME ADI-2/4 Pro SE",
+          "command": "vol_down",
+          "repeat": true
+        }
+      },
+      "stop": [
+        {
+          "device": "RME ADI-2/4 Pro SE",
+          "power": "off"
+        },
+        {
+          "delay_ms": 500
+        },
+        {
+          "device": "speakers",
+          "power": "off"
+        }
+      ]
     }
   }
 }

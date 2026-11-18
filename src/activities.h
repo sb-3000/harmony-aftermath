@@ -18,6 +18,10 @@ void activitiesHandleRemote(RemoteEvent event, uint32_t code);
 // Presses a button by name, as if it came from the remote (short press only).
 bool activitiesPressButton(const String& name, String& error);
 
+// "on", "off" or "" if unknown. Read from a Tasmota switch when the device has one, otherwise
+// the last On or Off the hub sent it.
+String devicePowerState(const String& device);
+
 String activityCurrent();
 bool activityBusy();
 String lastButtonText();

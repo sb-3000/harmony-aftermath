@@ -34,6 +34,12 @@ bool validateCommand(JsonObject devices, JsonObject step, const String& where, S
 
   const char* command = step["command"];
   const char* power = step["power"];
+  if (!step["settle_ms"].isNull()) {
+    if (power == nullptr || strcmp(power, "on") != 0 || !step["settle_ms"].is<unsigned int>()) {
+      error = where + ": settle_ms needs a number and \"power\": \"on\"";
+      return false;
+    }
+  }
   String transport = device["transport"] | "";
   if (transport == "tasmota") {
     String action = power != nullptr ? power : (command != nullptr ? command : "");
@@ -131,6 +137,11 @@ bool validate(JsonDocument& doc, String& error) {
         return false;
       }
     } else if (transport == "bluetooth") {
+      // The name is the key the pairing is saved under, and those keys hold at most 15 characters.
+      if (strlen(pair.key().c_str()) > 15) {
+        error = where + ": a Bluetooth device name can be at most 15 characters";
+        return false;
+      }
       for (JsonPair command : device["commands"].as<JsonObject>()) {
         if (!bleKeyKnown(command.value())) {
           error = where + ": command " + command.key().c_str() + " has an unknown key";

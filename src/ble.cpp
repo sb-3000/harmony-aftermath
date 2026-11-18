@@ -59,6 +59,8 @@ const Key KEYS[] = {
     {"KEY_BACKSPACE", 0x2A, false, 0, false},
     {"KEY_TAB", 0x2B, false, 0, false},
     {"KEY_SPACE", 0x2C, false, 0, false},
+    // The keyboard Menu (Application) key. Android and Fire TV treat it as the Menu button.
+    {"KEY_MENU", 0x65, false, 0, false},
     {"MEDIA_PLAY_PAUSE", 0xCD, true, 0, false},
     {"MEDIA_STOP", 0xB7, true, 0, false},
     {"MEDIA_NEXT", 0xB5, true, 0, false},
@@ -76,11 +78,17 @@ NimBLECharacteristic* keyboardInput = nullptr;
 NimBLECharacteristic* mediaInput = nullptr;
 NimBLECharacteristic* systemInput = nullptr;
 
-// Written by the Bluetooth task, read by the main loop.
-volatile bool connected = false;
+// Each paired device keeps its own connection, so the PC and a streaming box can both stay
+// connected. Links are written by the Bluetooth task and read by the main loop.
+constexpr int MAX_LINKS = CONFIG_BT_NIMBLE_MAX_CONNECTIONS;
+struct Link {
+  bool used;
+  uint16_t handle;
+  char address[18];  // Set once the link is encrypted and belongs to a paired device.
+};
+Link links[MAX_LINKS] = {};
+portMUX_TYPE linksLock = portMUX_INITIALIZER_UNLOCKED;
 volatile bool needsAdvertising = false;
-char connectedAddress[18] = "";
-uint16_t connectionHandle = 0;
 
 String pairingName;
 uint32_t pairingUntil = 0;
@@ -89,12 +97,13 @@ String savedAddress(const String& name) {
   return preferences.getString(name.c_str(), "");
 }
 
-bool isSavedAddress(const char* address) {
+// The paired name that owns this address, or empty.
+String savedNameFor(const char* address) {
   for (int i = 0; i < preferences.getInt("count", 0); i++) {
     String name = preferences.getString(("n" + String(i)).c_str(), "");
-    if (!name.isEmpty() && savedAddress(name) == address) return true;
+    if (!name.isEmpty() && savedAddress(name) == address) return name;
   }
-  return false;
+  return "";
 }
 
 void rememberName(const String& name) {
@@ -106,17 +115,41 @@ void rememberName(const String& name) {
   preferences.putInt("count", count + 1);
 }
 
-bool anyPaired() {
+int linkCount() {
+  int count = 0;
+  portENTER_CRITICAL(&linksLock);
+  for (const Link& link : links) count += link.used ? 1 : 0;
+  portEXIT_CRITICAL(&linksLock);
+  return count;
+}
+
+// The connection handle for this address, or -1 if it isn't connected.
+int linkHandle(const String& address) {
+  if (address.isEmpty()) return -1;
+  int handle = -1;
+  portENTER_CRITICAL(&linksLock);
+  for (const Link& link : links) {
+    if (link.used && address == link.address) handle = link.handle;
+  }
+  portEXIT_CRITICAL(&linksLock);
+  return handle;
+}
+
+// True if some paired device isn't connected yet, so the hub should keep advertising for it.
+bool pairedDeviceWaiting() {
   for (int i = 0; i < preferences.getInt("count", 0); i++) {
     String name = preferences.getString(("n" + String(i)).c_str(), "");
-    if (!name.isEmpty() && !savedAddress(name).isEmpty()) return true;
+    if (name.isEmpty()) continue;
+    String address = savedAddress(name);
+    if (!address.isEmpty() && linkHandle(address) < 0) return true;
   }
   return false;
 }
 
 void updateAdvertising() {
   NimBLEAdvertising* advertising = NimBLEDevice::getAdvertising();
-  bool wanted = !connected && (!pairingName.isEmpty() || anyPaired());
+  bool room = linkCount() < MAX_LINKS;
+  bool wanted = room && (!pairingName.isEmpty() || pairedDeviceWaiting());
   if (wanted && !advertising->isAdvertising()) {
     advertising->start();
   } else if (!wanted && advertising->isAdvertising()) {
@@ -124,17 +157,64 @@ void updateAdvertising() {
   }
 }
 
+// Sends one input report to one connection only, so a key meant for the PC never reaches
+// another connected device. NimBLE's own notify() would send it to every subscriber.
+void sendReport(NimBLECharacteristic* report, uint16_t handle, const uint8_t* data, size_t length) {
+  report->setValue(data, length);
+  os_mbuf* buffer = ble_hs_mbuf_from_flat(data, length);
+  if (buffer != nullptr) ble_gattc_notify_custom(handle, report->getHandle(), buffer);
+}
+
+bool hasBond(const String& address) {
+  for (int i = 0; i < NimBLEDevice::getNumBonds(); i++) {
+    if (address == NimBLEDevice::getBondedAddress(i).toString().c_str()) return true;
+  }
+  return false;
+}
+
+// A saved pairing is only useful while Bluetooth still holds its keys. If the keys are gone,
+// the device can't reconnect, so show it as not paired and let it be paired again.
+void forgetLostBonds() {
+  for (int i = 0; i < preferences.getInt("count", 0); i++) {
+    String name = preferences.getString(("n" + String(i)).c_str(), "");
+    if (name.isEmpty()) continue;
+    String address = savedAddress(name);
+    if (address.isEmpty() || hasBond(address)) continue;
+    preferences.remove(name.c_str());
+    logEvent("Bluetooth keys for %s were lost, pair it again", name.c_str());
+  }
+}
+
 class ServerCallbacks : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer*, ble_gap_conn_desc* desc) override {
-    connectionHandle = desc->conn_handle;
-    connected = true;
+    logEvent("Bluetooth connection from %s", NimBLEAddress(desc->peer_id_addr).toString().c_str());
+    portENTER_CRITICAL(&linksLock);
+    for (Link& link : links) {
+      if (!link.used) {
+        link.used = true;
+        link.handle = desc->conn_handle;
+        link.address[0] = '\0';
+        break;
+      }
+    }
+    portEXIT_CRITICAL(&linksLock);
+    // Advertising stops on every connection. Start it again if another device is still missing.
+    needsAdvertising = true;
   }
 
-  void onDisconnect(NimBLEServer*) override {
-    connected = false;
-    connectedAddress[0] = '\0';
+  void onDisconnect(NimBLEServer*, ble_gap_conn_desc* desc) override {
+    char address[18] = "";
+    portENTER_CRITICAL(&linksLock);
+    for (Link& link : links) {
+      if (link.used && link.handle == desc->conn_handle) {
+        memcpy(address, link.address, sizeof(address));
+        link.used = false;
+        link.address[0] = '\0';
+      }
+    }
+    portEXIT_CRITICAL(&linksLock);
     needsAdvertising = true;
-    logEvent("Bluetooth disconnected");
+    logEvent("Bluetooth disconnected %s", address[0] != '\0' ? address : "(not paired)");
   }
 
   void onAuthenticationComplete(ble_gap_conn_desc* desc) override {
@@ -147,12 +227,16 @@ class ServerCallbacks : public NimBLEServerCallbacks {
       return;
     }
 
-    if (!pairingName.isEmpty()) {
-      preferences.putString(pairingName.c_str(), text);
-      rememberName(pairingName);
-      logEvent("Bluetooth paired %s with %s", pairingName.c_str(), text.c_str());
+    String name = savedNameFor(text.c_str());
+    if (!name.isEmpty()) {
+      // A paired device came back. This also covers one reconnecting while another pairs.
+    } else if (!pairingName.isEmpty()) {
+      name = pairingName;
+      preferences.putString(name.c_str(), text);
+      rememberName(name);
+      logEvent("Bluetooth paired %s with %s", name.c_str(), text.c_str());
       pairingName = "";
-    } else if (!isSavedAddress(text.c_str())) {
+    } else {
       // Not paired through the hub, so it doesn't get to stay.
       logEvent("Bluetooth rejected unknown device %s", text.c_str());
       NimBLEDevice::deleteBond(address);
@@ -160,8 +244,15 @@ class ServerCallbacks : public NimBLEServerCallbacks {
       return;
     }
 
-    snprintf(connectedAddress, sizeof(connectedAddress), "%s", text.c_str());
-    logEvent("Bluetooth connected to %s", text.c_str());
+    portENTER_CRITICAL(&linksLock);
+    for (Link& link : links) {
+      if (link.used && link.handle == desc->conn_handle) {
+        snprintf(link.address, sizeof(link.address), "%s", text.c_str());
+      }
+    }
+    portEXIT_CRITICAL(&linksLock);
+    needsAdvertising = true;
+    logEvent("Bluetooth connected to %s (%s)", name.c_str(), text.c_str());
   }
 };
 
@@ -207,6 +298,7 @@ void bleBegin() {
   advertising->addServiceUUID(hid->hidService()->getUUID());
   advertising->setScanResponse(true);
 
+  forgetLostBonds();
   updateAdvertising();
 }
 
@@ -239,7 +331,11 @@ bool blePair(const String& name, String& error) {
     return false;
   }
 
-  if (connected) server->disconnect(connectionHandle);
+  if (linkCount() >= MAX_LINKS) {
+    error = "all Bluetooth connections are in use";
+    return false;
+  }
+
   pairingName = name;
   pairingUntil = millis() + PAIRING_WINDOW_MS;
   logEvent("Bluetooth pairing started for %s", name.c_str());
@@ -260,7 +356,8 @@ bool bleForget(const String& name, String& error) {
     return false;
   }
 
-  if (connected && address == connectedAddress) server->disconnect(connectionHandle);
+  int handle = linkHandle(address);
+  if (handle >= 0) server->disconnect(handle);
   NimBLEDevice::deleteBond(NimBLEAddress(address.c_str(), BLE_ADDR_PUBLIC));
   NimBLEDevice::deleteBond(NimBLEAddress(address.c_str(), BLE_ADDR_RANDOM));
   preferences.remove(name.c_str());
@@ -278,7 +375,8 @@ bool bleSendKey(const String& name, const char* keyName, String& error) {
     error = String("unknown key ") + (keyName != nullptr ? keyName : "(none)");
     return false;
   }
-  if (!bleIsConnected(name)) {
+  int handle = linkHandle(savedAddress(name));
+  if (handle < 0) {
     error = name + " is not connected";
     return false;
   }
@@ -286,27 +384,21 @@ bool bleSendKey(const String& name, const char* keyName, String& error) {
   if (key->system) {
     uint8_t press = 0x01;
     uint8_t release = 0x00;
-    systemInput->setValue(&press, sizeof(press));
-    systemInput->notify();
+    sendReport(systemInput, handle, &press, sizeof(press));
     delay(KEY_HOLD_MS);
-    systemInput->setValue(&release, sizeof(release));
-    systemInput->notify();
+    sendReport(systemInput, handle, &release, sizeof(release));
   } else if (key->media) {
     uint8_t press[2] = {uint8_t(key->code & 0xFF), uint8_t(key->code >> 8)};
     uint8_t release[2] = {0, 0};
-    mediaInput->setValue(press, sizeof(press));
-    mediaInput->notify();
+    sendReport(mediaInput, handle, press, sizeof(press));
     delay(KEY_HOLD_MS);
-    mediaInput->setValue(release, sizeof(release));
-    mediaInput->notify();
+    sendReport(mediaInput, handle, release, sizeof(release));
   } else {
     uint8_t press[8] = {key->modifier, 0, uint8_t(key->code), 0, 0, 0, 0, 0};
     uint8_t release[8] = {0};
-    keyboardInput->setValue(press, sizeof(press));
-    keyboardInput->notify();
+    sendReport(keyboardInput, handle, press, sizeof(press));
     delay(KEY_HOLD_MS);
-    keyboardInput->setValue(release, sizeof(release));
-    keyboardInput->notify();
+    sendReport(keyboardInput, handle, release, sizeof(release));
   }
   logEvent("Bluetooth key %s to %s", keyName, name.c_str());
   return true;
@@ -317,8 +409,7 @@ bool bleIsPaired(const String& name) {
 }
 
 bool bleIsConnected(const String& name) {
-  String address = savedAddress(name);
-  return connected && !address.isEmpty() && address == connectedAddress;
+  return linkHandle(savedAddress(name)) >= 0;
 }
 
 String blePairingName() {

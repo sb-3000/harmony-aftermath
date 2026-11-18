@@ -3,7 +3,7 @@
 #include <Arduino.h>
 
 #define HUB_NAME "Harmony Aftermath"
-#define HUB_VERSION "0.11"
+#define HUB_VERSION "0.13.2"
 
 // Records an event in the recent-events list and on USB serial.
 void logEvent(const char* format, ...);

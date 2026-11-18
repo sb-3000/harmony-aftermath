@@ -27,7 +27,25 @@ String htmlEscape(String text) {
   return text;
 }
 
-String deviceStateText(JsonObject device) {
+// Names in URL paths may contain spaces or slashes, so callers send them percent-encoded
+// (%20, %2F). The web server doesn't decode the path, so each part is decoded after splitting.
+String urlDecodePart(const String& text) {
+  String decoded;
+  decoded.reserve(text.length());
+  for (unsigned int i = 0; i < text.length(); i++) {
+    char c = text.charAt(i);
+    if (c == '%' && i + 2 < text.length() && isxdigit(text.charAt(i + 1)) && isxdigit(text.charAt(i + 2))) {
+      char hex[3] = {text.charAt(i + 1), text.charAt(i + 2), 0};
+      decoded += char(strtol(hex, nullptr, 16));
+      i += 2;
+    } else {
+      decoded += c;
+    }
+  }
+  return decoded;
+}
+
+String deviceStateText(const String& name, JsonObject device) {
   const char* host = device["host"];
   if (host != nullptr) {
     TasmotaState state = tasmotaState(host);
@@ -39,7 +57,10 @@ String deviceStateText(JsonObject device) {
     if (!state.known) return "unknown";
     return state.switch1 == (device["state"]["on_value"] | "") ? "ON" : "OFF";
   }
-  return "not tracked";
+  if (device["transport"] == "bluetooth") return bleIsConnected(name) ? "connected" : "not connected";
+  // No way to read it, so show the last On or Off the hub sent.
+  String remembered = devicePowerState(name);
+  return remembered.isEmpty() ? "unknown" : remembered + " (last sent)";
 }
 
 String remoteAddress() {
@@ -102,7 +123,7 @@ void fillStatus(JsonDocument& doc) {
   doc["firmware_slot"] = esp_ota_get_running_partition()->label;
   doc["free_heap"] = ESP.getFreeHeap();
   for (JsonPair pair : gConfig["devices"].as<JsonObject>()) {
-    doc["devices"][pair.key()] = deviceStateText(pair.value());
+    doc["devices"][pair.key()] = deviceStateText(pair.key().c_str(), pair.value());
   }
 }
 
@@ -215,12 +236,12 @@ void handleRoot() {
   for (JsonPair pair : doc["devices"].as<JsonObject>()) {
     row(pair.key().c_str(), pair.value().as<String>());
   }
-  page += "</table><h2>Activities</h2><table>";
+  page += "</table><h2>Activities</h2><ul>";
   for (JsonPair pair : gConfig["activities"].as<JsonObject>()) {
-    row(pair.value()["name"] | pair.key().c_str(), pair.key().c_str());
+    page += "<li>" + htmlEscape(pair.key().c_str()) + "</li>";
   }
   page +=
-      "</table><p><a href='/remote'>Remote</a> &middot; <a href='/devices'>Devices</a> &middot; "
+      "</ul><p><a href='/remote'>Remote</a> &middot; <a href='/devices'>Devices</a> &middot; "
       "<a href='/wifi'>Wi-Fi</a> &middot; <a href='/config'>Config</a> &middot; "
       "<a href='/log'>Log</a></p></body></html>";
   server.send(200, "text/html", page);
@@ -257,7 +278,7 @@ void handleDevicesState() {
       JsonObject item = others.add<JsonObject>();
       item["name"] = name;
       item["transport"] = transport;
-      item["state"] = deviceStateText(pair.value());
+      item["state"] = deviceStateText(name, pair.value());
     }
   }
   String body;
@@ -342,8 +363,8 @@ async function refresh() {
     cell(row, pairing ? 'Pairing' : d.connected ? 'Paired, connected' : d.paired ? 'Paired' : 'Not paired');
     const td = cell(row, '');
     if (pairing) button(td, 'Cancel', '/bluetooth/cancel');
-    else if (d.paired) button(td, 'Forget', '/bluetooth/forget/' + d.name, 'Forget ' + d.name + '?');
-    else if (!data.pairing) button(td, 'Pair', '/bluetooth/pair/' + d.name);
+    else if (d.paired) button(td, 'Forget', '/bluetooth/forget/' + encodeURIComponent(d.name), 'Forget ' + d.name + '?');
+    else if (!data.pairing) button(td, 'Pair', '/bluetooth/pair/' + encodeURIComponent(d.name));
   }
   if (data.pairing) message.textContent = 'On ' + data.pairing + ', add a Bluetooth device and choose this hub. ' + data.seconds_left + ' s left.';
   else if (message.textContent.includes(' s left.')) message.textContent = '';
@@ -399,15 +420,10 @@ void handleApiState() {
   JsonDocument doc;
   String current = activityCurrent();
   doc["activity"] = current;
-  doc["activity_name"] = current.isEmpty() ? "" : (gConfig["activities"][current]["name"] | current.c_str());
   doc["busy"] = activityBusy();
   doc["last_button"] = lastButtonText();
   JsonArray activities = doc["activities"].to<JsonArray>();
-  for (JsonPair pair : gConfig["activities"].as<JsonObject>()) {
-    JsonObject item = activities.add<JsonObject>();
-    item["id"] = pair.key();
-    item["name"] = pair.value()["name"] | pair.key().c_str();
-  }
+  for (JsonPair pair : gConfig["activities"].as<JsonObject>()) activities.add(pair.key());
   JsonArray buttons = doc["buttons"].to<JsonArray>();
   for (JsonPair pair : gConfig["remote"]["buttons"].as<JsonObject>()) buttons.add(pair.value());
   String body;
@@ -434,7 +450,7 @@ async function post(path) {
   return response.ok;
 }
 function bindButton(el) {
-  const path = '/api/button/' + el.dataset.button;
+  const path = '/api/button/' + encodeURIComponent(el.dataset.button);
   let timer = null;
   const stop = () => { clearInterval(timer); timer = null; };
   el.addEventListener('pointerdown', e => {
@@ -447,14 +463,14 @@ function bindButton(el) {
 document.querySelectorAll('[data-button]').forEach(bindButton);
 async function refresh() {
   const data = await (await fetch('/api/state')).json();
-  status.textContent = data.activity ? 'Now: ' + data.activity_name + (data.busy ? ' (starting)' : '') : 'No activity running';
+  status.textContent = data.activity ? 'Now: ' + data.activity + (data.busy ? ' (starting)' : '') : 'No activity running';
   const box = document.getElementById('activities');
   box.innerHTML = '';
   for (const a of data.activities) {
     const b = document.createElement('button');
-    b.textContent = a.name;
-    if (a.id === data.activity) b.className = 'on';
-    b.onclick = async () => { if (await post('/api/activity/' + a.id)) refresh(); };
+    b.textContent = a;
+    if (a === data.activity) b.className = 'on';
+    b.onclick = async () => { if (await post('/api/activity/' + encodeURIComponent(a))) refresh(); };
     box.appendChild(b);
   }
 }
@@ -472,8 +488,8 @@ void handleNotFound() {
   String uri = server.uri();
   String error;
 
-    if (server.method() == HTTP_POST && uri.startsWith("/api/button/")) {
-    if (!activitiesPressButton(uri.substring(12), error)) {
+  if (server.method() == HTTP_POST && uri.startsWith("/api/button/")) {
+    if (!activitiesPressButton(urlDecodePart(uri.substring(12)), error)) {
       server.send(400, "text/plain", error + "\n");
       return;
     }
@@ -482,7 +498,7 @@ void handleNotFound() {
   }
 
   if (server.method() == HTTP_POST && uri.startsWith("/api/activity/")) {
-    if (!activityStart(uri.substring(14), error)) {
+    if (!activityStart(urlDecodePart(uri.substring(14)), error)) {
       server.send(404, "text/plain", error + "\n");
       return;
     }
@@ -527,7 +543,7 @@ void handleNotFound() {
       server.send(400, "text/plain", "use /api/device/{name}/{command}\n");
       return;
     }
-    if (!deviceCommand(uri.substring(12, slash), uri.substring(slash + 1), error)) {
+    if (!deviceCommand(urlDecodePart(uri.substring(12, slash)), urlDecodePart(uri.substring(slash + 1)), error)) {
       server.send(404, "text/plain", error + "\n");
       return;
     }
@@ -542,7 +558,7 @@ void handleNotFound() {
       bleCancelPair();
     } else if (action.startsWith("pair/") || action.startsWith("forget/")) {
       bool pairing = action.startsWith("pair/");
-      String name = action.substring(pairing ? 5 : 7);
+      String name = urlDecodePart(action.substring(pairing ? 5 : 7));
       if (gConfig["devices"][name]["transport"] != "bluetooth") {
         error = name + " is not a Bluetooth device in the config";
         ok = false;

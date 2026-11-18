@@ -7,7 +7,9 @@ over a 2.4 GHz nRF24L01 radio.
 It controls devices by:
 
 - **IR**: NEC codes from the hub's own LEDs and a plug-in IR blaster
-- **Bluetooth**: acts as a keyboard and media remote for a PC, including sleep
+- **Bluetooth**: acts as a keyboard and media remote for a PC or a streaming box like Fire TV,
+  including PC sleep. Up to three devices stay connected at once, and each key goes only to
+  the device it's meant for
 - **Wake-on-LAN**: wakes a sleeping PC over the network
 - **HTTP**: switches a [Tasmota](https://tasmota.github.io/) relay, and reads its input to
   tell whether a device is on
@@ -50,14 +52,15 @@ If new firmware can't reach Wi-Fi within 3 minutes, the hub rolls back to the pr
    devices, and upload it:
 
    ```bash
-   curl -X PUT --data-binary @data/config.json http://harmony-aftermath.local/config
+   curl -X PUT -H "Content-Type: application/json" --data-binary @data/config.json http://harmony-aftermath.local/config
    ```
 
    The hub checks the whole file and rejects it with a reason if anything is wrong.
 3. **Remote.** On the **Devices** page, pair the Harmony remote. If you already know its
    address, put it in `remote.address` in the config instead.
-4. **Bluetooth.** On the **Devices** page, press **Pair** next to the PC, then add the
-   "Harmony Aftermath" keyboard from the PC's Bluetooth settings within a minute.
+4. **Bluetooth.** On the **Devices** page, press **Pair** next to a Bluetooth device, then
+   add the "Harmony Aftermath" keyboard from that device's Bluetooth settings within a
+   minute. Pair each device on its own; already paired devices stay connected.
 
 ## Config
 
@@ -77,12 +80,15 @@ file it gives you. The hub checks every upload and rejects mistakes with a reaso
 - `activity_buttons` and `activity_buttons_long`: which button starts which activity, on a
   short or long (0.8 s) press.
 
-**`devices`**, each with a `transport`:
+**`devices`**: the key is the device's name, shown on the pages and used in activities,
+for example `"RME ADI-2/4 Pro SE"`. A Bluetooth device's name can be at most 15 characters.
+Each device has a `transport`:
 
 - `ir_nec`: `id` is the 4-hex-digit NEC address, and `commands` map names to 2-hex-digit
   codes. Only NEC is supported. See [Finding IR codes](#finding-ir-codes).
 - `bluetooth`: `commands` map names to keys: `KEY_UP`, `KEY_DOWN`, `KEY_LEFT`,
   `KEY_RIGHT`, `KEY_ENTER`, `KEY_ESC`, `KEY_BACKSPACE`, `KEY_TAB`, `KEY_SPACE`,
+  `KEY_MENU` (the Menu button on Fire TV and Android),
   `KEY_SHIFT`, `KEY_A` to `KEY_Z`, `MEDIA_PLAY_PAUSE`, `MEDIA_STOP`, `MEDIA_NEXT`,
   `MEDIA_PREVIOUS`, `MEDIA_MUTE`, `MEDIA_VOLUME_UP`, `MEDIA_VOLUME_DOWN` and
   `SYSTEM_SLEEP`.
@@ -90,19 +96,25 @@ file it gives you. The hub checks every upload and rejects mistakes with a reaso
 
 Any device can also have:
 
-- `wake_on_lan`: `mac` and `broadcast`, which enable the `wake_by_network` command.
+- `wake_on_lan`: `mac` and `broadcast`, which enable the `wake_by_network` command. For a
+  Bluetooth device, the hub skips the wake while the device is connected, since a sleeping
+  PC drops its Bluetooth connection.
 - `state`: a Tasmota switch input that shows whether the device is on (`tasmota`,
   `switch`, `on_value`). This lets `"power": "on"` work for a device whose only power-on
   code is a toggle. Name that command `toggle`: the hub reads the switch and sends
   `toggle` only if the device is off. `"power": "off"` always needs an `off` command.
 
-**`activities`**
+**`activities`**: the key is the activity's name, shown on the pages and used in
+`activity_buttons` and `extends`, for example `"Watch PC with RME"`. Each activity has:
 
-- `name`: shown on the pages.
 - `start` and `stop`: lists of steps, run in order. A step is `{"device", "command"}`,
   `{"device", "power": "on" | "off"}` or `{"delay_ms"}`. A `power` step uses the device's
-  `on` or `off` command (or `toggle`, as above). Starting an activity runs the previous
-  activity's `stop` steps first. Starting the activity that's already running runs its
+  `on` or `off` command (or `toggle`, as above). A `"power": "on"` step can add
+  `"settle_ms"`: the hub then waits that long after it, but only if the device was off, so a
+  TV that's already on switches input right away. For a device without a Tasmota `state`,
+  "was off" means the last power command the hub sent it was `off`, or the hub hasn't sent
+  one since it started. If you turn the device off with its own remote, the hub doesn't
+  know. Starting an activity runs the previous activity's `stop` steps first. Starting the activity that's already running runs its
   `start` steps again, without `stop`.
 - `buttons`: maps button names to a device command. Add `"repeat": true` to repeat while
   the button is held. Buttons that aren't listed do nothing, and until an activity has
@@ -136,7 +148,7 @@ Databases are sometimes wrong for a specific model, so test every code.
 3. Test each command on its own:
 
    ```bash
-   curl -X POST http://harmony-aftermath.local/api/device/lg_tv/mute
+   curl -X POST http://harmony-aftermath.local/api/device/LG%20OLED%20TV/mute
    ```
 
    Test IR with a command you can see, like mute, first. A code that seems not to work is
@@ -159,10 +171,16 @@ To map a remote button that isn't in the config yet, press it and find its code 
 
 | API | What it does |
 |---|---|
-| `GET /api/state` | Current activity, button names and activity list |
+| `GET /api/state` | Current activity, button names and activity names |
 | `POST /api/button/{name}` | Presses a button, like the remote |
-| `POST /api/activity/{id}` | Starts an activity |
+| `POST /api/activity/{name}` | Starts an activity |
 | `POST /api/device/{name}/{command}` | Sends one device command |
+
+Names in the path are percent-encoded, so a space is `%20` and a slash is `%2F`:
+
+```bash
+curl -X POST "http://harmony-aftermath.local/api/device/RME%20ADI-2%2F4%20Pro%20SE/mute"
+```
 
 There is no login. Anyone on your network can use the pages and API, including uploading
 config and firmware.

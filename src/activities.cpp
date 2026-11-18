@@ -21,8 +21,27 @@ struct Step {
   String device;
   String command;
   uint32_t delayMs;
+  uint32_t settleMs;  // After a power-on step: wait this long, but only if the device was off.
   bool isPower;
 };
+
+// The last On or Off the hub sent to each device without a way to read its real state.
+// Kept in memory only, so after a restart every such device counts as unknown.
+struct Remembered {
+  String device;
+  bool on;
+};
+std::vector<Remembered> remembered;
+
+void rememberPower(const String& name, bool on) {
+  for (Remembered& item : remembered) {
+    if (item.device == name) {
+      item.on = on;
+      return;
+    }
+  }
+  remembered.push_back({name, on});
+}
 
 Preferences preferences;
 String current;
@@ -97,6 +116,7 @@ void addSteps(JsonArray list) {
   for (JsonObject item : list) {
     Step step;
     step.delayMs = item["delay_ms"] | 0;
+    step.settleMs = item["settle_ms"] | 0;
     step.device = item["device"] | "";
     const char* power = item["power"];
     step.isPower = power != nullptr;
@@ -122,6 +142,11 @@ bool sendWakeOnLan(const String& name, JsonObject wol, String& error) {
   if (wol.isNull()) {
     error = name + " has no wake_on_lan settings";
     return false;
+  }
+  // A sleeping PC drops its Bluetooth connection, so a connected one is already awake.
+  if (bleIsConnected(name)) {
+    logEvent("%s is awake (Bluetooth connected), no wake needed", name.c_str());
+    return true;
   }
   if (WiFi.status() != WL_CONNECTED) {
     error = "Wi-Fi is not connected";
@@ -232,6 +257,7 @@ bool deviceCommand(const String& name, const String& command, String& error) {
       error = "IR queue full";
       return false;
     }
+    if (command == "on" || command == "off") rememberPower(name, command == "on");
     return true;
   }
 
@@ -355,10 +381,42 @@ void activitiesLoop() {
     return;
   }
 
+  bool settles = step.isPower && step.command == "on" && step.settleMs > 0;
+  bool wasOn = settles && devicePowerState(step.device) == "on";
+
   String error;
   bool ok = step.isPower ? devicePower(step.device, step.command == "on", error)
                          : deviceCommand(step.device, step.command, error);
   if (!ok) logEvent("Step failed: %s", error.c_str());
+
+  if (ok && settles) {
+    if (wasOn) {
+      logEvent("%s was already on, no wait", step.device.c_str());
+    } else {
+      waitUntil = millis() + step.settleMs;
+      waiting = true;
+    }
+  }
+}
+
+String devicePowerState(const String& name) {
+  JsonObject device = gConfig["devices"][name];
+  const char* host = device["host"];
+  if (host != nullptr) {
+    TasmotaState state = tasmotaState(host);
+    if (!state.known) return "";
+    return state.power == "ON" ? "on" : "off";
+  }
+  const char* stateHost = device["state"]["tasmota"];
+  if (stateHost != nullptr) {
+    TasmotaState state = tasmotaState(stateHost);
+    if (!state.known) return "";
+    return state.switch1 == (device["state"]["on_value"] | "") ? "on" : "off";
+  }
+  for (const Remembered& item : remembered) {
+    if (item.device == name) return item.on ? "on" : "off";
+  }
+  return "";
 }
 
 String activityCurrent() {

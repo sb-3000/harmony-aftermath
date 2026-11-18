@@ -21,7 +21,7 @@ from a browser or phone.
 
 A Seeed XIAO ESP32-C3, an nRF24L01 radio, IR LEDs on two SS8050 transistors, and an
 optional jack for a Harmony IR mini blaster. Tested with the Harmony Companion remote.
-The schematic and building notes are in [`hardware/`](hardware/).
+The parts list, schematic and building notes are in [`hardware/`](hardware/).
 
 ## Build and flash
 

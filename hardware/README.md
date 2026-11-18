@@ -25,7 +25,7 @@ perfboard, with through-hole parts only.
 
 ## Building notes
 
-- The radio sits under the board with its antenna past the board's edge.
+- The radio sits on top of the board.
 - The six hub LEDs point two to the front, two up, one left and one right, copying the
   original Harmony Hub. Like the original, it can reach devices that aren't directly in
   front of it, by bouncing IR off walls and the ceiling.

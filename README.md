@@ -80,7 +80,7 @@ file it gives you. The hub checks every upload and rejects mistakes with a reaso
 **`devices`**, each with a `transport`:
 
 - `ir_nec`: `id` is the 4-hex-digit NEC address, and `commands` map names to 2-hex-digit
-  codes.
+  codes. Only NEC is supported. See [Finding IR codes](#finding-ir-codes).
 - `bluetooth`: `commands` map names to keys: `KEY_UP`, `KEY_DOWN`, `KEY_LEFT`,
   `KEY_RIGHT`, `KEY_ENTER`, `KEY_ESC`, `KEY_BACKSPACE`, `KEY_TAB`, `KEY_SPACE`,
   `KEY_SHIFT`, `KEY_A` to `KEY_Z`, `MEDIA_PLAY_PAUSE`, `MEDIA_STOP`, `MEDIA_NEXT`,
@@ -92,18 +92,58 @@ Any device can also have:
 
 - `wake_on_lan`: `mac` and `broadcast`, which enable the `wake_by_network` command.
 - `state`: a Tasmota switch input that shows whether the device is on (`tasmota`,
-  `switch`, `on_value`). This lets `"power": "on"` work for a device whose only power
-  code is a toggle.
+  `switch`, `on_value`). This lets `"power": "on"` work for a device whose only power-on
+  code is a toggle. Name that command `toggle`: the hub reads the switch and sends
+  `toggle` only if the device is off. `"power": "off"` always needs an `off` command.
 
 **`activities`**
 
 - `name`: shown on the pages.
-- `start` and `stop`: lists of steps. A step is `{"device", "command"}`,
-  `{"device", "power": "on" | "off"}` or `{"delay_ms"}`. Starting an activity runs the
-  previous activity's `stop` steps first.
+- `start` and `stop`: lists of steps, run in order. A step is `{"device", "command"}`,
+  `{"device", "power": "on" | "off"}` or `{"delay_ms"}`. A `power` step uses the device's
+  `on` or `off` command (or `toggle`, as above). Starting an activity runs the previous
+  activity's `stop` steps first. Starting the activity that's already running runs its
+  `start` steps again, without `stop`.
 - `buttons`: maps button names to a device command. Add `"repeat": true` to repeat while
-  the button is held.
-- `extends`: another activity whose buttons and steps this one inherits.
+  the button is held. Buttons that aren't listed do nothing, and until an activity has
+  started, only activity buttons work.
+- `extends`: another activity to inherit from. Buttons are inherited one by one, so this
+  activity only lists the buttons it changes. `start` and `stop` are not merged: if this
+  activity has its own list, it replaces the parent's.
+
+A button in `activity_buttons_long` does its short-press action when it's released, since
+the hub has to wait to see whether it's a long press.
+
+### Finding IR codes
+
+Codes for most devices are in [Flipper-IRDB](https://github.com/Lucaslhm/Flipper-IRDB).
+Its files give the protocol, address and command, which convert like this:
+
+| Flipper file | Config |
+|---|---|
+| `protocol: NEC`, `address: 04 00 00 00`, `command: 08 00 00 00` | `"id": "04FB"`, `"08"` (the address followed by its inverse) |
+| `protocol: NECext`, `address: 12 34 00 00`, `command: 60 9F 00 00` | `"id": "1234"`, `"60"` (both address bytes as they are) |
+
+The command is always only the first byte: the hub sends its inverse as the second byte.
+An NECext code whose second command byte isn't the inverse of the first won't work.
+
+Databases are sometimes wrong for a specific model, so test every code.
+
+### Adding a device
+
+1. Start from the hub's current config: `curl http://harmony-aftermath.local/config`.
+2. Find the device's codes and add it to `devices`, then upload.
+3. Test each command on its own:
+
+   ```bash
+   curl -X POST http://harmony-aftermath.local/api/device/lg_tv/mute
+   ```
+
+   Test IR with a command you can see, like mute, first. A code that seems not to work is
+   often just the hub not reaching the device.
+4. Use the commands in activity steps and button maps, then upload again.
+
+To map a remote button that isn't in the config yet, press it and find its code in `/log`.
 
 ## Web pages and API
 
